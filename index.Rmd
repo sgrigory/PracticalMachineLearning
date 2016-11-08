@@ -1,30 +1,220 @@
 ---
-title: "Practical Machine Learning Course Assignment"
+title: "Practical Machine Learning Course Assignment: Human Activity Recognition"
 author: "Grigory Sizov"
 date: "6/11/2016"
-output: html_document
+output: 
+  html_document: 
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## General description
+Six participants of an experiment are asked to perform an excercise in 5 different ways (the *class* variable below): the correct one, denoted by "A" and 4 incorrect, denoted by "B"-"E".
+Our goal is to construct a model which predicts the manner an excercise is preformed based on data from sensores fixed on users' arms, forearms, belts, and dumbbells.
+Since the participants can be different in their physical characteristics and the manner of performing the excercises, we fit the model separately for each participant.
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r libs, include=FALSE}
+library(caret)
+library(ggplot2)
+library(gbm)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots!
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r data, include=FALSE}
+path="~/Documents/coursera"
+classes=c("A","B","C","D","E")
+data=read.csv(paste0(path,"/pml-training.csv"))
+data.quiz=read.csv(paste0(path,"/pml-testing.csv"))
+```
+# Have a look at the data
+We are provided with two files: "pml-training.csv", which will be used for training and testing, and "pml-testing.csv"
+which will be used for predictions for the final quiz.
+The quiz file contains 60 non-NA columns, of which 52 are the data from the sensors. Based on them we will be making our predictions.
+```{r vars, include=FALSE}
+available_vars=names(data.quiz[1,])[which(!is.na(data.quiz[1,]))][c(-1,-3,-4,-5,-6,-7,-60)]
+available_vars=c(available_vars,"classe")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r factors, include=FALSE}
+data$user_name=as.factor(data$user_name)
+data$classe=as.factor(data$classe)
+```
+
+```{r partition, include=FALSE}
+set.seed(NULL)
+ind_train=createDataPartition(1:dim(data)[1],p=0.7)[[1]]
+train=data[ind_train,available_vars]
+test=data[-ind_train,available_vars]
+```
+To see what is going on let us plot a couple of variables against time:
+```{r plot0, echo=FALSE}
+data$timestamp=data$raw_timestamp_part_1*10^7+data$raw_timestamp_part_2
+ggplot(data[data$user_name=="pedro",],aes(y=roll_arm,x=timestamp,col=classe))+geom_line()
+ggplot(data[data$user_name=="pedro",],aes(y=gyros_belt_z,x=timestamp,col=classe))+geom_line()
+```
+
+Here different color mark different classes of mistakes. Plots of most variables look like oscillations, but with range depending on the class. This means that the probability density of variables is different for different classes. Let us plot it: 
+```{r plot2, echo=FALSE}
+ggplot(data=train[train$roll_belt>50,], aes(x=roll_belt,col=classe))+geom_bar()
+#ggplot(data=train, aes(x=yaw_belt,col=classe))+geom_bar()
+#ggplot(data=train, aes(x=pitch_belt,col=classe))+geom_bar()
+```
+```{r tC, echo=FALSE}
+tC=trainControl(method="repeatedcv",number=4,repeats=1,classProbs = T)
+```
+Indeed, we can see that, for example, large values of *roll_belt* almos always mean class "E", whereas values around 110 only have non-zero probabiliy for class "A". Hope our model will capture those patterns.
+
+```{r pred, include=FALSE}
+pred=function(method,df.train,df.test,tC)
+{
+  fit=train(classe~.,data=df.train,method=method,trControl=tC)
+  pred.test=predict(fit,newdata=df.test,type="raw")
+  acc=mean(pred.test==df.test$classe)
+  probs=predict(fit,newdata=df.test,type="prob")
+  return(list(acc,probs,fit))
+    
+}
+```
+
+
+```{r loop.1, include=FALSE}
+user_names=names(table(data$user_name))
+res=vector("list",length(user_names))
+big.pred=rep("X",dim(test)[1])
+stacked=rep(0,length(user_names))
+for (i in 1:length(user_names))
+{
+  df.train=train[train$user_name==user_names[i],-1]
+  df.test=test[test$user_name==user_names[i],-1] 
+  nw=list()
+  nw$glm=pred("multinom",df.train,df.test,tC)
+  nw$gbm=pred("gbm",df.train,df.test,tC)
+  nw$rf=pred("rf",df.train,df.test,tC)
+  nw$svm=pred("svmRadial",df.train,df.test,tC)
+  
+  
+  #probs.test.stack=(res[[i]]$glm[[1]]*res[[i]]$glm[[2]]+res[[i]]$gbm[[1]]*res[[i]]$gbm[[2]]+
+   #                   res[[i]]$rf[[1]]*res[[i]]$rf[[2]]+res[[i]]$svm[[1]]*res[[i]]$svm[[2]])/
+    #(res[[i]]$glm[[1]]+res[[i]]$gbm[[1]]+res[[i]]$rf[[1]]+res[[i]]$svm[[1]])
+  
+  probs.test.stack=(nw$glm[[1]]*nw$glm[[2]]+nw$gbm[[1]]*nw$gbm[[2]]+nw$rf[[1]]*nw$rf[[2]]+nw$svm[[1]]*nw$svm[[2]])/
+    (nw$glm[[1]]+nw$gbm[[1]]+nw$rf[[1]]+nw$svm[[1]])
+  
+  pred.stack.test=classes[apply(probs.test.stack,1,which.max)]
+  big.pred[test$user_name==user_names[i]]=pred.stack.test
+  res[[i]]=nw
+  stacked[i]=mean(pred.stack.test==df.test$classe)
+  
+}
+```
+
+
+```{r loop.2, include=FALSE}
+data.quiz$pred=rep("X",dim(data.quiz)[1])
+for (i in 1:length(user_names))
+{
+  #available_vars[c(-1,-length(available_vars))]
+  ind=data.quiz$user_name==user_names[i]
+  quiz=data.quiz[ind,]
+  nn=dim(quiz)[1]
+  if (nn==1)
+  {
+    quiz=rbind(quiz,quiz)
+  }
+  p1=predict(res[[i]]$glm[[3]],newdata=quiz,type="prob")
+  p2=predict(res[[i]]$gbm[[3]],newdata=quiz,type="prob")
+  p3=predict(res[[i]]$rf[[3]],newdata=quiz,type="prob")
+  p4=predict(res[[i]]$svm[[3]],newdata=quiz,type="prob")
+  p.stack=(res[[i]]$glm[[1]]*p1+res[[i]]$gbm[[1]]*p2+
+                      res[[i]]$rf[[1]]*p3+res[[i]]$svm[[1]]*p4)/(res[[i]]$glm[[1]]+res[[i]]$gbm[[1]]+res[[i]]$rf[[1]]+
+                                                                   res[[i]]$svm[[1]])
+  if (nn==1)
+    p.stack=p.stack[1,]
+  ress=classes[apply(p.stack,1,which.max)]
+  
+  data.quiz[ind,]$pred=ress
+}
+```
+
+
+
+
+
+## Description of the fit
+We split the data loaded from "pml-training.csv" into the training and testing sets: 70% for training and %30% for testing.
+Then we fit the data on the training set with 4 different models: 
+
+- multinomial regression, 
+- generalized boosted regression, 
+- random forest
+- support vector model.
+
+To this end, we use the *predict* function the *caret* package with "glm","gbm","rf", and "svmRadial" methods.
+When called with an option 'type="prob"', it outputs the probabilities of different outcomes. We get a table of probabilities which looks like this: 
+
+
+```{r example, include=FALSE}
+dt.example=data.frame(rbind(glm=res[[1]]$glm[[2]][1,],gbm=res[[1]]$gbm[[2]][1,],rf=res[[1]]$rf[[2]][1,],svm=res[[1]]$svm[[2]][1,]))
+```
+
+```{r, echo=FALSE}
+dt.example
+```
+
+We then average these probabilities with the weights proportional to the overall accuracy of each model on the test set. The final result is produced by choosing the outcome with maximum probability for each point in the test set. This procedure is repeated for each of the six participants.
+
+##Cross validation
+
+Every fit is accompanied by 10-fold cross-validation, repeated 5 times. The parameters of cross-validation are
+passed to the *predict* method through the *trControl* parameter. The cross-validated accuracy was calculated for each participant and for each model:
+```{r, echo=FALSE}
+tab1=sapply(res,function(x) c(max(x$glm[[3]]$results$Accuracy),max(x$gbm[[3]]$results$Accuracy),max(x$rf[[3]]$results$Accuracy),max(x$svm[[3]]$results$Accuracy)))
+colnames(tab1)=user_names
+rownames(tab1)=c("glm","gbm","rf","svm")
+tab1=data.frame(cbind(tab1,mean=rowMeans(tab1)))
+tab1
+```
+We expect the accuracy of our final outcome, averaged over the four models, to be close to that of the most efficient model here, i.e. GBM. On the test sample we have the accuracy is `r mean(big.pred==test$classe)`.
+
+Here is how the confusion matrix on the test set looks like:
+```{r, echo=FALSE}
+
+cM=confusionMatrix(big.pred,test$classe)
+cM.df=as.data.frame((cM$table)/rowSums(cM$table))
+cM.df$rgb=sapply(cM.df$Freq,function(x) rgb(x,0,0))
+ggplot(data=cM.df)+geom_tile(aes(x=Prediction,y=Reference,fill=Freq))+scale_y_discrete(name="Actual Class")+scale_fill_gradient(breaks=seq(from=-.5, to=4, by=.2),low="white",high="red")
+
+```
+
+We can also look at the relative importance of variables. For example, in the most efficient model, GBM and for the first participant the most important variables are:
+```{r, echo=FALSE}
+varImp(res[[1]]$gbm[[3]])
+```
+One can of course reduce the number of variables by dropping the factors lower in the list, but we did not do that because the cross-validated performance of the model seems to be good as it is.
+
+# Predictions for the quiz dataset
+
+After we have fitted and cross-validated our model, let us apply it to 20 data points from "pml-testing.csv".
+
+As before, for each data point we will apply four models and average the probabilities. The output value is the one which maximizes the probability.
+In this way we have obtained the following predictions for the quiz:
+```{r, echo=FALSE}
+data.quiz$pred
+```
+
+In fact, the data points from the quiz set are a part of an open database available at
+
+<http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv>
+```{r, include=FALSE}
+correct=as.factor(c('B','A','B','A','A','E','D','B','A','A','B','C','B','A','E','E','A','B','B','B'))
+```
+
+```{r, include=FALSE}
+final.acc=sprintf("%.2f",mean(data.quiz$pred==correct))
+```
+We have found that our prediction's accuracy on the quiz dataset is `r final.acc`.
+
+
