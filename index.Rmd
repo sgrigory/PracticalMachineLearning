@@ -24,6 +24,7 @@ library(gbm)
 ```
 
 ```{r data, include=FALSE}
+set.seed(NULL)
 path="~/Documents/coursera"
 classes=c("A","B","C","D","E")
 data=read.csv(paste0(path,"/pml-training.csv"))
@@ -183,9 +184,8 @@ Here is how the confusion matrix on the test set looks like:
 ```{r, echo=FALSE}
 
 cM=confusionMatrix(big.pred,test$classe)
-cM.df=as.data.frame((cM$table)/rowSums(cM$table))
-cM.df$rgb=sapply(cM.df$Freq,function(x) rgb(x,0,0))
-ggplot(data=cM.df)+geom_tile(aes(x=Prediction,y=Reference,fill=Freq))+scale_y_discrete(name="Actual Class")+scale_fill_gradient(breaks=seq(from=-.5, to=4, by=.2),low="white",high="red")
+cM.df=as.data.frame(sqrt((cM$table)/rowSums(cM$table)))
+ggplot(data=cM.df)+geom_tile(aes(x=Prediction,y=Reference,fill=Freq))+scale_y_discrete(name="Actual Class")+scale_fill_gradient2(low="white",high="red",breaks=sqrt(seq(from=0, to=1, by=0.2)),labels=sapply(seq(from=0, to=1, by=0.2),as.character))
 
 ```
 
@@ -213,7 +213,7 @@ correct=as.factor(c('B','A','B','A','A','E','D','B','A','A','B','C','B','A','E',
 ```
 
 ```{r, include=FALSE}
-final.acc=sprintf("%.2f",mean(data.quiz$pred==correct))
+final.acc=sprintf("%d%%",100*mean(data.quiz$pred==correct))
 ```
 We have found that our prediction's accuracy on the quiz dataset is `r final.acc`.
 

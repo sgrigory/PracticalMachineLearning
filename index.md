@@ -59,10 +59,10 @@ When called with an option 'type="prob"', it outputs the probabilities of differ
 
 ```
 ##             A            B            C            D            E
-## glm 0.4345499 0.0408990129 5.049803e-01 1.904614e-05 1.955168e-02
-## gbm 0.9998910 0.0000633604 4.534001e-05 1.411628e-07 1.116122e-07
-## rf  0.9820000 0.0120000000 2.000000e-03 2.000000e-03 2.000000e-03
-## svm 0.8406303 0.0825647063 1.722071e-02 1.013409e-02 4.945015e-02
+## glm 0.4880513 2.678048e-01 2.113195e-01 2.602001e-03 3.022239e-02
+## gbm 0.9999525 4.242473e-05 4.863914e-06 1.815484e-07 1.168302e-08
+## rf  0.9960000 4.000000e-03 0.000000e+00 0.000000e+00 0.000000e+00
+## svm 0.9542269 2.597133e-02 6.230547e-03 3.155364e-03 1.041584e-02
 ```
 
 We then average these probabilities with the weights proportional to the overall accuracy of each model on the test set. The final result is produced by choosing the outcome with maximum probability for each point in the test set. This procedure is repeated for each of the six participants.
@@ -74,12 +74,12 @@ passed to the *predict* method through the *trControl* parameter. The cross-vali
 
 ```
 ##        adelmo  carlitos   charles    eurico    jeremy     pedro      mean
-## glm 0.7959587 0.8920061 0.9254037 0.9297164 0.8485715 0.8566064 0.8747105
-## gbm 0.9900535 0.9940992 0.9935516 0.9948449 0.9920302 0.9901171 0.9924494
-## rf  0.9889521 0.9936479 0.9943561 0.9948467 0.9861577 0.9895568 0.9912529
-## svm 0.7495444 0.8325694 0.8448115 0.9226831 0.8502416 0.8175960 0.8362410
+## glm 0.7881956 0.8860678 0.9218440 0.9147824 0.8321322 0.8794561 0.8704130
+## gbm 0.9900344 0.9917017 0.9959923 0.9930905 0.9915917 0.9873455 0.9916260
+## rf  0.9867180 0.9953934 0.9935885 0.9935458 0.9877967 0.9906448 0.9912812
+## svm 0.7667846 0.8362501 0.8505015 0.9138794 0.8384411 0.8062734 0.8353550
 ```
-We expect the accuracy of our final outcome, averaged over the four models, to be close to that of the most efficient model here, i.e. GBM. On the test sample we have the accuracy is 0.9932019.
+We expect the accuracy of our final outcome, averaged over the four models, to be close to that of the most efficient model here, i.e. GBM. On the test sample we have the accuracy is 0.9940517.
 
 Here is how the confusion matrix on the test set looks like:
 ![](index_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
@@ -91,29 +91,30 @@ We can also look at the relative importance of variables. For example, in the mo
 ## 
 ##   only 20 most important variables shown (out of 52)
 ## 
-##                      Overall
-## roll_belt           100.0000
-## pitch_belt           64.3756
-## yaw_belt             61.7785
-## yaw_arm              26.2486
-## magnet_belt_x        15.2542
-## magnet_dumbbell_z    11.7459
-## magnet_forearm_x     11.7130
-## magnet_arm_z         11.4785
-## roll_arm              7.1000
-## magnet_belt_z         6.7509
-## magnet_dumbbell_y     6.6102
-## accel_arm_y           3.7316
-## total_accel_forearm   2.9366
-## pitch_arm             2.3901
-## magnet_dumbbell_x     2.1898
-## magnet_belt_y         1.9755
-## magnet_arm_y          1.3873
-## roll_dumbbell         1.2925
-## accel_belt_x          1.0273
-## gyros_belt_z          0.8501
+##                     Overall
+## roll_belt           100.000
+## pitch_belt           56.416
+## yaw_belt             49.020
+## yaw_arm              25.355
+## magnet_dumbbell_z    13.696
+## magnet_forearm_x     11.714
+## magnet_belt_x        11.448
+## magnet_arm_z          7.494
+## magnet_belt_z         4.831
+## total_accel_forearm   4.670
+## magnet_dumbbell_y     4.388
+## roll_arm              3.875
+## accel_belt_z          2.262
+## magnet_belt_y         2.013
+## pitch_arm             1.984
+## accel_belt_x          1.820
+## accel_arm_y           1.681
+## magnet_arm_y          1.598
+## total_accel_arm       1.228
+## roll_dumbbell         1.152
 ```
 One can of course reduce the number of variables by dropping the factors lower in the list, but we did not do that because the cross-validated performance of the model seems to be good as it is.
+
 # Predictions for the quiz dataset
 
 After we have fitted and cross-validated our model, let us apply it to 20 data points from "pml-testing.csv".
@@ -130,6 +131,8 @@ In fact, the data points from the quiz set are a part of an open database availa
 
 <http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv>
 
-We have found that our prediction's accuracy on the quiz dataset is 1.
+
+
+We have found that our prediction's accuracy on the quiz dataset is 100%.
 
 
